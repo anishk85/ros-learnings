@@ -45,3 +45,29 @@ thsi is the final fix which worked for me
 this is for ros2 humble gazebo classic i hope this works for all other version it's one of the most common error i encountered 
 ```
 
+#sometimes i faced the ros2 run no executable found so there's might be an issue that your cmake lists.txt has some error 
+like i did this 
+```bash
+# Install directories
+install(DIRECTORY
+  config
+  launch
+  meshes
+  urdf
+  scripts
+
+#   worlds
+  DESTINATION share/${PROJECT_NAME}/
+)
+```
+but the correct fix was this
+``` bash
+install(PROGRAMS
+  scripts/teleop_robot.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+```
+
+
+
+
