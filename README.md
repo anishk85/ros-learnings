@@ -29,3 +29,19 @@ Global Options:
 ```
 you need a fixed frame 
 
+#sometimes like your paths in urdf files for meshes or stl doesn't works well 
+https://robotics.stackexchange.com/questions/111580/rviz2-can-not-load-resource-of-mesh-geometry
+here's the issue which addresses this 
+```bash
+change these to 
+<mesh filename="package://my_package/meshes/rp_lidar.dae"/>
+to 
+<mesh filename="$(find my_package)/meshes/rp_lidar.dae"/>
+now gazebo loads this but rviz gave error retrieving file so here is the fix 
+
+chnage the all file paths to this 
+<mesh filename="file://$(find my_package)/meshes/rp_lidar.dae"/>
+thsi is the final fix which worked for me 
+this is for ros2 humble gazebo classic i hope this works for all other version it's one of the most common error i encountered 
+```
+
