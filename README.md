@@ -67,6 +67,109 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 ```
+#Setting up moveit servo
+robot description error 
+urdf did not loaded 
+so first you need to craete a servo_server then i copied my robot decription into that 
+``` bash
+#!/usr/bin/env python3
+import rospy
+
+def copy_robot_description():
+    rospy.init_node('copy_robot_desc')
+    
+    # Copy robot description from my_gen3 namespace to servo_server namespace
+    if rospy.has_param('/my_gen3/robot_description'):
+        robot_desc = rospy.get_param('/my_gen3/robot_description')
+        rospy.set_param('/servo_server/robot_description', robot_desc)
+        print("✅ Robot description copied successfully!")
+    else:
+        print("❌ Robot description not found!")
+
+if __name__ == '__main__':
+    copy_robot_description()
+```
+then for kinova robotic arm i encountered that i there was mismatch of mesaage type so i craeted velocity bridge 
+
+```bash
+# This revealed the real problem!
+rostopic info /my_gen3/in/joint_velocity
+# Type: std_msgs/Float64MultiArray
+# Subscribers: * /my_gen3/my_gen3_driver
+
+# But when we tried to publish:
+rostopic pub -r 10 /my_gen3/in/joint_velocity std_msgs/Float64MultiArray "data: [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
+# ERROR: topic types do not match: [kortex_driver/Base_JointSpeeds] vs. [std_msgs/Float64MultiArray]
+find /root/ros_ws/src/niwesh/kinova_urc_arm -name "*.cpp" -o -name "*.py" | xargs grep -l "joint_velocity"
+grep -A 10 -B 5 "joint_velocity" /root/ros_ws/src/niwesh/kinova_urc_arm/kortex_driver/src/non-generated/driver/kortex_subscribers.cpp
+```
+
+velocity bridge 
+``` bash
+#!/usr/bin/env python3
+
+import rospy
+from std_msgs.msg import Float64MultiArray
+import importlib
+import sys
+
+# Try to import the correct message type
+try:
+    # Try different possible locations for the message
+    from kortex_driver.msg import Base_JointSpeeds, JointSpeed
+    print("Found Base_JointSpeeds in kortex_driver.msg")
+except ImportError:
+    try:
+        # Search in generated messages
+        sys.path.append('/root/ros_ws/src/niwesh/kinova_urc_arm/kortex_driver/src/generated')
+        from kortex_driver.msg import Base_JointSpeeds, JointSpeed
+        print("Found Base_JointSpeeds in generated")
+    except ImportError:
+        print("ERROR: Cannot find Base_JointSpeeds message type")
+        # Let's see what's available
+        rospy.logfatal("Cannot import Base_JointSpeeds. Available message types:")
+        import kortex_driver.msg as kdm
+        print(dir(kdm))
+        sys.exit(1)
+
+class VelocityBridge:
+    def __init__(self):
+        rospy.init_node('velocity_bridge')
+        
+        # Subscribe to servo output
+        rospy.Subscriber('/servo_server/command', Float64MultiArray, self.servo_callback)
+        
+        # Publish to robot using correct message type
+        self.joint_vel_pub = rospy.Publisher('/my_gen3/in/joint_velocity', Base_JointSpeeds, queue_size=1)
+        
+        rospy.loginfo("Velocity bridge initialized - converting Float64MultiArray to Base_JointSpeeds")
+        
+    def servo_callback(self, msg):
+        """Convert Float64MultiArray to Base_JointSpeeds"""
+        joint_speeds = Base_JointSpeeds()
+        joint_speeds.joint_speeds = []
+        
+        # Convert each velocity to JointSpeed message
+        for i, velocity in enumerate(msg.data):
+            if i < 7:  # Only use first 7 joints (arm joints, not gripper)
+                joint_speed = JointSpeed()
+                joint_speed.joint_identifier = i
+                joint_speed.value = float(velocity)
+                joint_speeds.joint_speeds.append(joint_speed)
+        
+        # Publish to robot
+        self.joint_vel_pub.publish(joint_speeds)
+        rospy.logdebug(f"Published joint velocities: {[js.value for js in joint_speeds.joint_speeds]}")
+
+if __name__ == '__main__':
+    try:
+        bridge = VelocityBridge()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
+    except Exception as e:
+        rospy.logfatal(f"Bridge failed: {e}")
+```
 
 
 
