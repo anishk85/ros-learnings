@@ -173,4 +173,16 @@ if __name__ == '__main__':
 
 
 
+Your URDF file likely references meshes like this: package://rover_description/meshes/some_mesh.STL.
+
+For Gazebo to understand what package://rover_description means, its GAZEBO_RESOURCE_PATH environment variable must point to the directory containing the rover_description package.
+
+Your package is at /root/catkin_ws/src/rover_description.
+
+Therefore, GAZEBO_RESOURCE_PATH must contain /root/catkin_ws/src, which is equivalent to $(find rover_description)/...
+
+Your launch file correctly sets GAZEBO_MODEL_PATH but incorrectly sets GAZEBO_RESOURCE_PATH.
+
+
+
 
